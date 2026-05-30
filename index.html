@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Karaoke Web - YouTube</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            text-align: center;
+            padding: 20px;
+            margin: 0;
+            min-height: 100vh;
+        }
+        h1 { margin-bottom: 10px; color: #e94560; }
+        .subtitle { color: #aaa; margin-bottom: 30px; font-size: 0.9em; }
+        
+        .search-container {
+            max-width: 600px;
+            margin: 0 auto 30px;
+            display: flex;
+            gap: 10px;
+        }
+        input {
+            flex: 1;
+            padding: 12px;
+            border-radius: 25px;
+            border: none;
+            font-size: 16px;
+            outline: none;
+        }
+        button {
+            padding: 12px 25px;
+            border-radius: 25px;
+            border: none;
+            background: #e94560;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover { background: #ff2e63; }
+
+        #player-container {
+            max-width: 800px;
+            margin: 0 auto 20px;
+            background: #0f3460;
+            padding: 10px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            min-height: 450px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #player { width: 100%; height: 100%; }
+
+        #results {
+            max-width: 600px;
+            margin: 0 auto;
+            list-style: none;
+            padding: 0;
+        }
+        .result-item {
+            background: rgba(255,255,255,0.05);
+            margin: 8px 0;
+            padding: 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            transition: background 0.2s;
+        }
+        .result-item:hover { background: rgba(233, 69, 96, 0.2); }
+        .thumb { width: 80px; height: 60px; object-fit: cover; border-radius: 4px; }
+        .info h3 { margin: 0; font-size: 16px; color: #fff; }
+        .info p { margin: 4px 0 0; font-size: 13px; color: #ccc; }
+
+        .lyrics-box {
+            margin-top: 20px;
+            padding: 20px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            font-style: italic;
+            color: #ffd700;
+            min-height: 50px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🎤 Karaoke Web - YouTube</h1>
+    <p class="subtitle">Busca artistas y reproduce instrumentales</p>
+
+    <div class="search-container">
+        <input type="text" id="searchInput" placeholder="Ej: Cristian Castro, Shakira, Bad Bunny...">
+        <button onclick="searchYouTube()">Buscar</button>
+    </div>
+
+    <div id="player-container">
+        <div id="player">
+            <p style="color: #aaa;">Selecciona una canción para comenzar</p>
+        </div>
+    </div>
+
+    <div id="lyricsDisplay" class="lyrics-box">
+        Las letras aparecerán aquí...
+    </div>
+
+    <ul id="results"></ul>
+
+    <!-- Script de la API de YouTube -->
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script>
+        let player;
+        let currentVideoId = null;
+
+        // 1. Inicializar el reproductor de YouTube
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('player', {
+                height: '390',
+                width: '100%',
+                playerVars: {
+                    'playsinline': 1,
+                    'rel': 0,
+                    'modestbranding': 1
+                },
+                events: {
+                    'onReady': onPlayerReady,
+                    'onStateChange': onPlayerStateChange
+                }
+            });
+        }
+
+        function onPlayerReady(event) {
+            // El reproductor está listo
+        }
+
+        function onPlayerStateChange(event) {
+            if (event.data === YT.PlayerState.PLAYING) {
+                console.log("Reproduciendo: " + currentVideoId);
+            }
+        }
+
+        // 2. Función de búsqueda con TU API KEY
+        async function searchYouTube() {
+            const query = document.getElementById('searchInput').value;
+            const resultsList = document.getElementById('results');
+            
+            // 🔑 TU CLAVE DE API INTEGRADA
+            const apiKey = 'AIzaSyDgU1Rn-l3D3caIg2wOUONkZWBCGHNJUvg';
+            
+            if (!query) return;
+
+            resultsList.innerHTML = '<li style="text-align:center; color:#aaa;">Buscando en YouTube...</li>';
+
+            // Buscamos "artista + instrumental karaoke"
+            const searchTerm = `${query} instrumental karaoke`;
+            const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=8&q=${encodeURIComponent(searchTerm)}&type=video&key=${apiKey}`;
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.error) {
+                    console.error("Error API:", data.error);
+                    resultsList.innerHTML = `<li style="text-align:center; color:red;">Error: ${data.error.message}. Revisa tu conexión o cuota.</li>`;
+                    return;
+                }
+
+                const items = data.items;
+                const tracks = items.map(item => ({
+                    id: item.id.videoId,
+                    title: item.snippet.title,
+                    artist: item.snippet.channelTitle
+                }));
+
+                renderResults(tracks);
+
+            } catch (error) {
+                console.error("Error de red:", error);
+                resultsList.innerHTML = '<li style="text-align:center; color:red;">Error al conectar con YouTube.</li>';
+            }
+        }
+
+        function renderResults(tracks) {
+            const list = document.getElementById('results');
+            list.innerHTML = '';
+
+            if (tracks.length === 0) {
+                list.innerHTML = '<li style="text-align:center; color:#aaa;">No se encontraron resultados. Intenta buscar "Shakira instrumental" o "Bad Bunny karaoke".</li>';
+                return;
+            }
+
+            tracks.forEach(track => {
+                const li = document.createElement('li');
+                li.className = 'result-item';
+                li.innerHTML = `
+                    <img src="https://img.youtube.com/vi/${track.id}/default.jpg" class="thumb" alt="Thumb">
+                    <div class="info">
+                        <h3>${track.title}</h3>
+                        <p>${track.artist}</p>
+                    </div>
+                `;
+                li.onclick = () => playVideo(track.id, track.title);
+                list.appendChild(li);
+            });
+        }
+
+        function playVideo(videoId, title) {
+            currentVideoId = videoId;
+            if (player && player.loadVideoById) {
+                player.loadVideoById(videoId);
+                document.getElementById('lyricsDisplay').innerHTML = `<strong>Reproduciendo:</strong> ${title}<br><br>¡Disfruta el karaoke!`;
+            }
+        }
+
+        // Permitir buscar con Enter
+        document.getElementById('searchInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') searchYouTube();
+        });
+    </script>
+</body>
+</html>
